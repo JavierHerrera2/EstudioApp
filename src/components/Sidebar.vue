@@ -2,9 +2,11 @@
 const emit = defineEmits(['navegar']);
 
 const menuItems = [
-  { id: 'temarios', nombre: 'Mis Temarios', icono: '📚' },
-  { id: 'calendario', nombre: 'Planificador', icono: '📅' },
-  { id: 'progreso', nombre: 'Mi Progreso', icono: '📈' },
+  { id: 'temarios', nombre: 'Temas', icono: '📚' },
+  { id: 'calendario', nombre: 'Calendario', icono: '📅' },
+  { id: 'pomodoro', nombre: 'Modo Enfoque', icono: '⏱️' },
+  { id: 'progreso', nombre: 'Mi Rendimiento', icono: '📊' },
+  { id: 'flashcards', nombre: 'Tarjetas de Repaso', icono: '🃏' },
   { id: 'perfil', nombre: 'Mi Perfil', icono: '👤' },
 ];
 </script>
@@ -13,7 +15,7 @@ const menuItems = [
   <aside class="sidebar">
     <div class="logo">
       <span class="logo-icon">🚀</span>
-      <h2>EstudioApp</h2>
+      <h2>BeriStudy</h2>
     </div>
 
     <nav class="menu">
