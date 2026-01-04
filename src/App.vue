@@ -1,104 +1,181 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { db, auth } from './firebase/config' 
-import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore'
+import { auth } from './firebase/config' 
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 
-// IMPORTAMOS LOS COMPONENTES DE AUTH
+// Componentes
+import Sidebar from './components/Sidebar.vue'
 import Login from './auth/Login.vue'
 import Register from './auth/Register.vue'
+import Temarios from './views/Temarios.vue'
+import DetalleTema from './views/DetalleTema.vue'
 
-// --- ESTADOS DE NAVEGACIÓN ---
-const vistaActual = ref('inicio') // Puede ser: 'inicio', 'login', 'registro'
+// --- ESTADOS ---
+const vistaActual = ref('login') 
 const usuarioLogueado = ref(null)
-
-// --- LÓGICA DE TEMAS (Tu código original) ---
-const nuevoTema = ref('')
-const listaTemas = ref([])
+const temaSeleccionado = ref(null)
+const menuAbierto = ref(false)
 
 onMounted(() => {
-  // Escuchar usuario
   onAuthStateChanged(auth, (user) => {
     usuarioLogueado.value = user
-    if (user) vistaActual.value = 'inicio'
-  })
-
-  // Escuchar temas en Firestore
-  const q = query(collection(db, "temarios"), orderBy("fecha", "desc"));
-  onSnapshot(q, (snapshot) => {
-    listaTemas.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    if (user) {
+      vistaActual.value = 'temarios' // Coincide con el ID del menú
+    } else {
+      vistaActual.value = 'login'
+    }
   })
 })
 
-const guardarEnFirebase = async () => {
-  if (nuevoTema.value.trim() === '') return
-  try {
-    await addDoc(collection(db, "temarios"), {
-      nombre: nuevoTema.value,
-      fecha: Date.now()
-    });
-    nuevoTema.value = '';
-  } catch (e) { console.error(e) }
+// --- NAVEGACIÓN ---
+const toggleMenu = () => {
+  menuAbierto.value = !menuAbierto.value
+}
+
+const cambiarVista = (nuevaVista) => {
+  temaSeleccionado.value = null
+  vistaActual.value = nuevaVista
+  menuAbierto.value = false 
+}
+
+const abrirTema = (tema) => {
+  temaSeleccionado.value = tema
+  vistaActual.value = 'detalle-tema'
+}
+
+const volverAInicio = () => {
+  temaSeleccionado.value = null
+  vistaActual.value = 'temarios'
 }
 
 const salir = () => {
   signOut(auth)
+  temaSeleccionado.value = null
   vistaActual.value = 'login'
+  menuAbierto.value = false
 }
 </script>
 
 <template>
   <div class="app-container">
-    <nav class="navbar">
-      <div class="logo" @click="vistaActual = 'inicio'">BeriStudy</div>
-      <div class="menu">
-        <template v-if="!usuarioLogueado">
-          <button @click="vistaActual = 'login'">Entrar</button>
-          <button @click="vistaActual = 'registro'">Crear Cuenta</button>
-        </template>
-        <template v-else>
-          <span>Hola, {{ usuarioLogueado.displayName || 'Estudiante' }}</span>
-          <button @click="salir" class="btn-rojo">Salir</button>
-        </template>
+    <nav v-if="usuarioLogueado" class="navbar">
+      <div class="nav-left">
+        <button @click="toggleMenu" class="btn-hamburguesa">☰</button>
+        <div class="logo" @click="volverAInicio">BeriStudy</div>
+      </div>
+      
+      <div class="nav-right">
+        <span class="user-name">Hola, {{ usuarioLogueado.displayName || 'Estudiante' }}</span>
+        <button @click="salir" class="btn-rojo">Salir</button>
       </div>
     </nav>
 
-    <main class="content">
-      
-      <div v-if="vistaActual === 'inicio'">
-        <h2>Mis Temarios</h2>
-        <div class="form" v-if="usuarioLogueado">
-          <input v-model="nuevoTema" @keyup.enter="guardarEnFirebase" placeholder="Añadir tema...">
-          <button @click="guardarEnFirebase">Añadir</button>
-        </div>
-        <p v-else>Inicia sesión para poder añadir temas.</p>
-
-        <ul class="lista">
-          <li v-for="tema in listaTemas" :key="tema.id">✅ {{ tema.nombre }}</li>
-        </ul>
+    <div v-if="usuarioLogueado" :class="['sidebar-overlay', { 'active': menuAbierto }]" @click="toggleMenu">
+      <div class="sidebar-wrapper" @click.stop>
+        
+        <button class="btn-triangulo" @click="toggleMenu">
+          <span class="triangulo-icon">◀</span>
+        </button>
+        
+        <Sidebar @navegar="cambiarVista" @logout="salir" />
       </div>
+    </div>
 
-      <div v-else-if="vistaActual === 'login'">
-      <Login @cambiarVista="(valor) => vistaActual = valor" />
-  
-  </div>
+    <main class="content">
+      <template v-if="usuarioLogueado">
+        
+        <Temarios 
+          v-if="vistaActual === 'temarios'" 
+          :user="usuarioLogueado" 
+          @seleccionarTema="abrirTema" 
+        />
+        
+        <DetalleTema 
+          v-else-if="vistaActual === 'detalle-tema'" 
+          :tema="temaSeleccionado" 
+          @volver="volverAInicio"
+        />
 
-  <div v-else-if="vistaActual === 'registro'">
-    <Register @cambiarVista="(valor) => vistaActual = valor" />
-  
-  </div>
+        <div v-else class="placeholder-section">
+          <div class="card-working">
+            <span class="emoji-animado">🛠️</span>
+            <h2>Sección de {{ vistaActual.toUpperCase() }}</h2>
+            <p>Estamos puliendo los últimos detalles de esta funcionalidad para que tu experiencia de estudio sea increíble.</p>
+            <p class="subtext">¡Muy pronto estará disponible en tu TFG!</p>
+            <button @click="volverAInicio" class="btn-regresar">Ir a Mis Temarios</button>
+          </div>
+        </div>
 
+      </template>
+
+      <template v-else>
+        <Login v-if="vistaActual === 'login'" @cambiarVista="(v) => vistaActual = v" />
+        <Register v-if="vistaActual === 'registro'" @cambiarVista="(v) => vistaActual = v" />
+      </template>
     </main>
   </div>
 </template>
 
 <style scoped>
-.navbar { display: flex; justify-content: space-between; background: #2c3e50; color: white; padding: 15px 30px; align-items: center; }
-.logo { font-weight: bold; cursor: pointer; }
-.menu button { margin-left: 10px; padding: 5px 12px; cursor: pointer; }
-.content { padding: 30px; max-width: 600px; margin: auto; }
-.lista { list-style: none; padding: 0; }
-li { background: #f0f4f8; margin: 10px 0; padding: 15px; border-radius: 8px; border-left: 5px solid #42b883; }
-.link { color: #42b883; cursor: pointer; margin-top: 20px; text-decoration: underline; text-align: center; }
-.btn-rojo { background: #ff5252; color: white; border: none; border-radius: 4px; }
+/* NAVBAR */
+.navbar { 
+  display: flex; justify-content: space-between; align-items: center; 
+  background: #2c3e50; color: white; padding: 15px 30px; 
+  position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+.nav-left { display: flex; align-items: center; gap: 15px; }
+.btn-hamburguesa { background: none; border: none; color: white; font-size: 1.6rem; cursor: pointer; }
+.logo { font-size: 1.5rem; font-weight: bold; cursor: pointer; }
+
+/* SIDEBAR OVERLAY */
+.sidebar-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.4); z-index: 200;
+  opacity: 0; pointer-events: none; transition: 0.3s ease;
+}
+.sidebar-overlay.active { opacity: 1; pointer-events: auto; }
+
+.sidebar-wrapper {
+  width: 280px; height: 100%; background: #1a202c;
+  transform: translateX(-100%); transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+.sidebar-overlay.active .sidebar-wrapper { transform: translateX(0); }
+
+/* BOTÓN PESTAÑA A MITAD DE ALTURA (RESTAURADO) */
+.btn-triangulo {
+  position: absolute;
+  right: -25px; /* Sobresale del menú */
+  top: 50%;
+  transform: translateY(-50%);
+  width: 25px;
+  height: 50px;
+  background: #1a202c;
+  border: none;
+  border-radius: 0 10px 10px 0;
+  color: #42b883;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 4px 0 8px rgba(0,0,0,0.2);
+}
+
+.triangulo-icon { font-size: 0.8rem; }
+
+/* CONTENIDO */
+.content { padding: 30px 20px; max-width: 1200px; margin: auto; }
+
+/* CARDS TRABAJANDO EN ELLO */
+.placeholder-section { display: flex; align-items: center; justify-content: center; height: 70vh; }
+.card-working { 
+  text-align: center; background: white; padding: 40px; border-radius: 20px; 
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 450px;
+}
+.emoji-animado { font-size: 3.5rem; display: block; margin-bottom: 15px; }
+.btn-regresar { margin-top: 20px; padding: 10px 25px; background: #42b883; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+/* ESTILOS EXTRA */
+.btn-rojo { background: #ff5252; border: none; padding: 8px 16px; border-radius: 6px; color: white; cursor: pointer; font-weight: 600; }
+.user-name { margin-right: 15px; font-size: 0.9rem; color: #ecf0f1; }
 </style>
